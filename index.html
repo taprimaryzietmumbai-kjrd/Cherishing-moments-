@@ -72,12 +72,16 @@ async function generateAICaptions(){
   const items=[];
   for(let i=0;i<chosen.length;i++)items.push({id:chosen[i].id,name:chosen[i].name,imageData:await imageDataForAI(chosen[i])});
   const frame=document.getElementById('captionBridge')||document.createElement('iframe');
-  frame.id='captionBridge';frame.name='captionBridge';frame.src=endpoint;frame.style.cssText='position:fixed;width:1px;height:1px;left:-10px;bottom:-10px;border:0;opacity:0;';if(!frame.isConnected)document.body.appendChild(frame);
+  frame.id='captionBridge';frame.name='captionBridge';frame.style.cssText='position:fixed;width:1px;height:1px;left:-10px;bottom:-10px;border:0;opacity:0;';if(!frame.isConnected)document.body.appendChild(frame);
   const result=await new Promise((resolve,reject)=>{
-   const timer=setTimeout(()=>{window.removeEventListener('message',listener);reject(new Error('The caption service did not respond. Check that the Apps Script web app is deployed and accessible.'))},120000);
-   function listener(e){if(e.source!==frame.contentWindow||!e.data||e.data.type!=='PHOTO_STUDIO_CAPTIONS_RESULT')return;clearTimeout(timer);window.removeEventListener('message',listener);e.data.error?reject(new Error(e.data.error)):resolve(e.data.captions)}
+   let settled=false;
+   const finish=(err,value)=>{if(settled)return;settled=true;clearTimeout(timer);window.removeEventListener('message',listener);frame.onload=null;err?reject(err):resolve(value)};
+   const timer=setTimeout(()=>finish(new Error('The caption service did not respond within 45 seconds. Check the Apps Script deployment and its access setting.')),45000);
+   function listener(e){if(e.source!==frame.contentWindow||!e.data||e.data.type!=='PHOTO_STUDIO_CAPTIONS_RESULT')return;e.data.error?finish(new Error(e.data.error)):finish(null,e.data.captions)}
    window.addEventListener('message',listener);
-   frame.onload=()=>frame.contentWindow.postMessage({type:'PHOTO_STUDIO_CAPTIONS_REQUEST',items,style:$('captionStyle').value},'*');
+   // Register onload before navigating: setting src first can miss a fast/cached load.
+   frame.onload=()=>{try{frame.contentWindow.postMessage({type:'PHOTO_STUDIO_CAPTIONS_REQUEST',items,style:$('captionStyle').value},'*')}catch(err){finish(new Error('Could not contact the caption service: '+err.message))}};
+   frame.src=endpoint+(endpoint.includes('?')?'&':'?')+'caption_request='+Date.now();
   });
   if(!Array.isArray(result))throw new Error('Unexpected caption response.');
   for(const row of result){const p=photos.find(x=>x.id===row.id);if(p&&row.caption){p.caption=String(row.caption).trim();collageCaptions[p.id]=p.caption;await put(STORE,p)}}

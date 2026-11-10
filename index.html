@@ -77,7 +77,7 @@ async function generateAICaptions(){
    let settled=false;
    const finish=(err,value)=>{if(settled)return;settled=true;clearTimeout(timer);window.removeEventListener('message',listener);frame.onload=null;err?reject(err):resolve(value)};
    const timer=setTimeout(()=>finish(new Error('The caption service did not respond within 45 seconds. Check the Apps Script deployment and its access setting.')),45000);
-   function listener(e){if(e.source!==frame.contentWindow||!e.data||e.data.type!=='PHOTO_STUDIO_CAPTIONS_RESULT')return;e.data.error?finish(new Error(e.data.error)):finish(null,e.data.captions)}
+   function listener(e){if(!e.data||e.data.type!=='PHOTO_STUDIO_CAPTIONS_RESULT')return;e.data.error?finish(new Error(e.data.error)):finish(null,e.data.captions)}
    window.addEventListener('message',listener);
    // Register onload before navigating: setting src first can miss a fast/cached load.
    frame.onload=()=>{try{frame.contentWindow.postMessage({type:'PHOTO_STUDIO_CAPTIONS_REQUEST',items,style:$('captionStyle').value},'*')}catch(err){finish(new Error('Could not contact the caption service: '+err.message))}};

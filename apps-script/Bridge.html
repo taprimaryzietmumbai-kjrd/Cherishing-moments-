@@ -1,0 +1,14 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><script>
+window.addEventListener('message', function(event) {
+  if (event.source !== parent || !event.data || event.data.type !== 'PHOTO_STUDIO_CAPTIONS_REQUEST') return;
+  var payload = event.data;
+  google.script.run
+    .withSuccessHandler(function(captions) {
+      parent.postMessage({type:'PHOTO_STUDIO_CAPTIONS_RESULT', captions:captions}, '*');
+    })
+    .withFailureHandler(function(error) {
+      parent.postMessage({type:'PHOTO_STUDIO_CAPTIONS_RESULT', error:(error && error.message) || 'Caption service failed.'}, '*');
+    })
+    .generateCaptions(payload);
+});
+</script></body></html>

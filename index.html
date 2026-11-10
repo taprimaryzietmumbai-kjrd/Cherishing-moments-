@@ -66,7 +66,6 @@ async function generateAICaptions(){
    function listener(e){if(e.source!==frame.contentWindow||!e.data||e.data.type!=='PHOTO_STUDIO_CAPTIONS_RESULT')return;clearTimeout(timer);window.removeEventListener('message',listener);e.data.error?reject(new Error(e.data.error)):resolve(e.data.captions)}
    window.addEventListener('message',listener);
    frame.onload=()=>frame.contentWindow.postMessage({type:'PHOTO_STUDIO_CAPTIONS_REQUEST',items,style:$('captionStyle').value},'*');
-   if(frame.contentDocument&&frame.contentDocument.readyState==='complete')frame.contentWindow.postMessage({type:'PHOTO_STUDIO_CAPTIONS_REQUEST',items,style:$('captionStyle').value},'*');
   });
   if(!Array.isArray(result))throw new Error('Unexpected caption response.');
   for(const row of result){const p=photos.find(x=>x.id===row.id);if(p&&row.caption){p.caption=String(row.caption).trim();collageCaptions[p.id]=p.caption;await put(STORE,p)}}

@@ -75,9 +75,63 @@ async function generateAICaptions(){
  finally{btn.disabled=false;btn.textContent='✧ Generate Captions with ChatGPT'}
 }
 
-$('chooseFiles').onclick=()=>$('fileInput').click();$('uploadTop').onclick=()=>$('fileInput').click();$('showUrlAdd').onclick=()=>$('urlAddPanel').classList.toggle('hidden');$('addPhotoUrl').onclick=addPhotoLink;$('photoUrlInput').onkeydown=e=>{if(e.key==='Enter')addPhotoLink()};$('fileInput').onchange=e=>addFiles(e.target.files);$('drop').ondragover=e=>{e.preventDefault();$('drop').style.borderColor='var(--accent)'};$('drop').ondrop=e=>{e.preventDefault();addFiles(e.dataTransfer.files)};$('newAlbum').onclick=$('newAlbum2').onclick=newAlbum;$('search').oninput=renderPhotos;$('sort').onchange=renderPhotos;$('albumFilter').onchange=e=>{activeAlbum=e.target.value;renderPhotos()};$('makeCollage').onclick=createCollage;$('generateCaptions').onclick=generateAICaptions;$('saveCaptionEndpoint').onclick=()=>{const v=$('captionEndpoint').value.trim();if(!/^https:\/\/script\.google\.com\/macros\/s\//.test(v)){toast('Paste a valid deployed Apps Script web app URL.');return}localStorage.setItem('photoStudioCaptionEndpoint',v);$('captionConnectionStatus').textContent='Connection URL saved in this browser.';toast('Caption connection saved.')};$('downloadCollage').onclick=()=> $('collageCanvas').toBlob(b=>download(b,'my-photo-collage.png'));$('closeModal').onclick=closeModal;$('modal').onclick=e=>{if(e.target===$('modal'))closeModal()};document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{activeAlbum='';nav(b.dataset.view)});$('newAlbum2').onclick=newAlbum;
+$('chooseFiles').onclick=()=>$('fileInput').click();$('uploadTop').onclick=()=>$('fileInput').click();$('fileInput').onchange=e=>addFiles(e.target.files);$('drop').ondragover=e=>{e.preventDefault();$('drop').style.borderColor='var(--accent)'};$('drop').ondrop=e=>{e.preventDefault();addFiles(e.dataTransfer.files)};$('newAlbum').onclick=$('newAlbum2').onclick=newAlbum;$('search').oninput=renderPhotos;$('sort').onchange=renderPhotos;$('albumFilter').onchange=e=>{activeAlbum=e.target.value;renderPhotos()};$('makeCollage').onclick=createCollage;$('generateCaptions').onclick=generateAICaptions;$('saveCaptionEndpoint').onclick=()=>{const v=$('captionEndpoint').value.trim();if(!/^https:\/\/script\.google\.com\/macros\/s\//.test(v)){toast('Paste a valid deployed Apps Script web app URL.');return}localStorage.setItem('photoStudioCaptionEndpoint',v);$('captionConnectionStatus').textContent='Connection URL saved in this browser.';toast('Caption connection saved.')};$('downloadCollage').onclick=()=> $('collageCanvas').toBlob(b=>download(b,'my-photo-collage.png'));$('closeModal').onclick=closeModal;$('modal').onclick=e=>{if(e.target===$('modal'))closeModal()};document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{activeAlbum='';nav(b.dataset.view)});$('newAlbum2').onclick=newAlbum;
 $('exportBackup').onclick=async()=>{const rows=await all(STORE),encoded=[];for(const p of rows){encoded.push({...p,blobData:p.blob?await blobToData(p.blob):null,blob:undefined})}download(new Blob([JSON.stringify({version:1,photos:encoded,albums},null,2)],{type:'application/json'}),'photo-studio-backup.json')};function blobToData(blob){return new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(blob)})}
 $('importBackup').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());for(const a of d.albums||[])await put(ALBUMS,a);for(const p of d.photos||[]){const blob=p.blobData?await (await fetch(p.blobData)).blob():null;delete p.blobData;p.blob=blob;await put(STORE,p)}await refresh();toast('Backup imported.')}catch(err){toast('Could not import this backup.')}};$('clearLibrary').onclick=async()=>{if(!confirm('Permanently delete all photos and albums stored in this browser?'))return;for(const p of photos)await del(STORE,p.id);for(const a of albums)await del(ALBUMS,a.id);activeAlbum='';await refresh();toast('Local library cleared.')};
 $('captionEndpoint').value=localStorage.getItem('photoStudioCaptionEndpoint')||'';if($('captionEndpoint').value)$('captionConnectionStatus').textContent='Connection URL saved in this browser.';
 (async()=>{try{db=await openDB();await refresh();renderAlbums()}catch(e){toast('This browser does not support local photo storage.')}})();
-</script></body></html>
+</script>
+<script>
+/* Independent direct-image-link controls; intentionally isolated from gallery UI handlers. */
+(function(){
+  function byId(id){return document.getElementById(id);}
+  function notify(message){
+    var t=byId('toast');
+    if(t){t.textContent=message;t.style.display='block';setTimeout(function(){t.style.display='none';},3000);}
+    else alert(message);
+  }
+  function openPanel(){
+    var panel=byId('urlAddPanel');
+    if(panel) panel.classList.toggle('hidden');
+    var input=byId('photoUrlInput');
+    if(panel && !panel.classList.contains('hidden') && input) input.focus();
+  }
+  async function saveLink(){
+    var input=byId('photoUrlInput'), panel=byId('urlAddPanel');
+    var raw=input ? input.value.trim() : '';
+    if(!raw){notify('Paste a direct image URL first.');return;}
+    var url;
+    try{url=new URL(raw);if(url.protocol!=='https:' && url.protocol!=='http:')throw new Error();}
+    catch(e){notify('Please paste a valid http/https image URL.');return;}
+    var btn=byId('addPhotoUrl');if(btn){btn.disabled=true;btn.textContent='Adding…';}
+    try{
+      var db=await new Promise(function(resolve,reject){
+        var req=indexedDB.open('PersonalPhotoStudioDB',1);
+        req.onsuccess=function(){resolve(req.result);};
+        req.onerror=function(){reject(req.error);};
+        req.onupgradeneeded=function(){reject(new Error('Photo library is not initialized yet. Reload the page and try again.'));};
+      });
+      var name;
+      try{name=decodeURIComponent(url.pathname.split('/').pop()||'Linked photo');}catch(e){name='Linked photo';}
+      await new Promise(function(resolve,reject){
+        var tx=db.transaction('photos','readwrite');
+        tx.objectStore('photos').put({id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),name:name,caption:'',blob:null,url:url.href,added:Date.now(),album:'',favourite:false});
+        tx.oncomplete=resolve;tx.onerror=function(){reject(tx.error);};tx.onabort=function(){reject(tx.error||new Error('Could not save photo link.'));};
+      });
+      db.close();
+      if(input)input.value='';
+      if(panel)panel.classList.add('hidden');
+      notify('Photo link added to your library.');
+      setTimeout(function(){location.reload();},500);
+    }catch(err){notify(err.message||'Could not save this photo link.');}
+    finally{if(btn){btn.disabled=false;btn.textContent='Add link';}}
+  }
+  document.addEventListener('DOMContentLoaded',function(){
+    var show=byId('showUrlAdd'),add=byId('addPhotoUrl'),input=byId('photoUrlInput');
+    if(show)show.addEventListener('click',openPanel);
+    if(add)add.addEventListener('click',saveLink);
+    if(input)input.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();saveLink();}});
+  });
+})();
+</script>
+</body></html>

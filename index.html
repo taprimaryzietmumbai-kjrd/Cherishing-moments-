@@ -20,7 +20,7 @@ function openDB(){return new Promise((res,rej)=>{const q=indexedDB.open(DB,1);q.
 function all(store){return new Promise((res,rej)=>{const t=db.transaction(store,'readonly').objectStore(store).getAll();t.onsuccess=()=>res(t.result);t.onerror=()=>rej(t.error)})}
 function put(store,obj){return new Promise((res,rej)=>{const t=db.transaction(store,'readwrite').objectStore(store).put(obj);t.onsuccess=()=>res();t.onerror=()=>rej(t.error)})}
 function del(store,id){return new Promise((res,rej)=>{const t=db.transaction(store,'readwrite').objectStore(store).delete(id);t.onsuccess=()=>res();t.onerror=()=>rej(t.error)})}
-async function refresh(){photos=await all(STORE);albums=await all(ALBUMS);render()}
+async function refresh(){photos=await all(STORE);albums=await all(ALBUMS);renderPhotos();renderAlbums();if(currentView==='collage')renderCollagePicker()}
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function nav(view){currentView=view;document.querySelectorAll('.nav button[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));['galleryView','albumsView','collageView','settingsView'].forEach(id=>$(id).classList.add('hidden'));$(view==='all'||view==='favourites'?'galleryView':view==='albums'?'albumsView':view==='collage'?'collageView':'settingsView').classList.remove('hidden');$('viewTitle').textContent=view==='favourites'?'Favourites':view==='albums'?'All Photos':view==='all'?'All Photos':view; if(view==='collage')renderCollagePicker();if(view==='albums')renderAlbums();renderPhotos()}
 function photoSrc(p){return p.url||URL.createObjectURL(p.blob)}

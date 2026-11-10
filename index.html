@@ -103,8 +103,16 @@ $('captionEndpoint').value=localStorage.getItem('photoStudioCaptionEndpoint')||'
     var url;
     try{url=new URL(raw);if(url.protocol!=='https:' && url.protocol!=='http:')throw new Error();}
     catch(e){notify('Please paste a valid http/https image URL.');return;}
-    var btn=byId('addPhotoUrl');if(btn){btn.disabled=true;btn.textContent='Adding…';}
+    var btn=byId('addPhotoUrl');if(btn){btn.disabled=true;btn.textContent='Checking image…';}
     try{
+      // Confirm the URL actually serves an image. This supports direct i.ibb.co image URLs.
+      await new Promise(function(resolve,reject){
+        var probe=new Image();
+        probe.onload=function(){resolve();};
+        probe.onerror=function(){reject(new Error('This link did not return a viewable image. Use the direct image address from i.ibb.co, ending in .jpg, .png or .webp.'))};
+        probe.src=url.href;
+      });
+      if(btn)btn.textContent='Adding…';
       var db=await new Promise(function(resolve,reject){
         var req=indexedDB.open('PersonalPhotoStudioDB',1);
         req.onsuccess=function(){resolve(req.result);};
